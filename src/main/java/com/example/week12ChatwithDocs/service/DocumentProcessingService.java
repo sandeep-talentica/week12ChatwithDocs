@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,9 +37,13 @@ public class DocumentProcessingService {
     public int processDocument(MultipartFile file) throws IOException {
         // Step 1: Load the document
         List<Document> documents = new ArrayList<>(loadDocument(file));
-        
+        if (documents.isEmpty()) {
+            throw new IllegalArgumentException("No readable content found in uploaded document");
+        }
+
         // Step 2: Add metadata to documents
         String parentDocId = UUID.randomUUID().toString();
+        List<Document> sanitizedDocuments = new ArrayList<>();
         for (int i = 0; i < documents.size(); i++) {
             Document doc = documents.get(i);
             Map<String, Object> metadata = new HashMap<>(doc.getMetadata());
@@ -48,13 +53,22 @@ public class DocumentProcessingService {
             metadata.put("source", file.getOriginalFilename());
             metadata.put("parent_document_id", parentDocId);
             
-            String text = doc.getText() != null ? doc.getText() : "";
-            documents.set(i, new Document(text, metadata));
+            String text = sanitizeExtractedText(doc.getText());
+            if (!text.isBlank()) {
+                sanitizedDocuments.add(new Document(text, metadata));
+            }
+        }
+
+        if (sanitizedDocuments.isEmpty()) {
+            throw new IllegalArgumentException("No readable text could be extracted from the uploaded file");
         }
         
         // Step 3: Chunk the documents
-        List<Document> chunks = chunkDocuments(documents, file.getOriginalFilename(), parentDocId);
-        
+        List<Document> chunks = chunkDocuments(sanitizedDocuments, parentDocId);
+        if (chunks.isEmpty()) {
+            throw new IllegalArgumentException("Document did not produce valid text chunks for indexing");
+        }
+
         // Step 4: Store in vector database
         storeDocuments(chunks);
         
@@ -90,9 +104,14 @@ public class DocumentProcessingService {
     /**
      * Chunk documents using TokenTextSplitter
      */
-    private List<Document> chunkDocuments(List<Document> documents, String filename, String parentDocId) {
+    private List<Document> chunkDocuments(List<Document> documents, String parentDocId) {
         List<Document> chunks = new ArrayList<>(tokenTextSplitter.apply(documents));
-        
+        if (chunks.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Document> sanitizedChunks = new ArrayList<>();
+
         // Add chunk-specific metadata
         for (int i = 0; i < chunks.size(); i++) {
             Document chunk = chunks.get(i);
@@ -101,11 +120,26 @@ public class DocumentProcessingService {
             metadata.put("total_chunks", chunks.size());
             metadata.put("parent_document_id", parentDocId);
             
-            String text = chunk.getText() != null ? chunk.getText() : "";
-            chunks.set(i, new Document(text, metadata));
+            String text = sanitizeExtractedText(chunk.getText());
+            if (!text.isBlank()) {
+                sanitizedChunks.add(new Document(text, metadata));
+            }
         }
         
-        return chunks;
+        return sanitizedChunks;
+    }
+
+    /**
+     * Remove null bytes and trim extracted content before DB/vector operations.
+     */
+    private String sanitizeExtractedText(String text) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+
+        return text
+                .replace("\u0000", "")
+                .trim();
     }
 
     /**

@@ -64,6 +64,13 @@ public class DocumentProcessingController {
                             file.getOriginalFilename(),
                             chunksCreated));
 
+        } catch (IllegalArgumentException e) {
+            logger.warn("Invalid document upload: {}", e.getMessage());
+            return ResponseEntity
+                    .badRequest()
+                    .body(DocumentUploadResponse.error(
+                            file.getOriginalFilename(),
+                            e.getMessage()));
         } catch (Exception e) {
             // Log the full exception for debugging
             logger.error("Error processing document: " + file.getOriginalFilename(), e);
