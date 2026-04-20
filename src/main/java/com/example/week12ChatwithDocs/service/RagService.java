@@ -1,5 +1,7 @@
 package com.example.week12ChatwithDocs.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.document.Document;
@@ -20,6 +22,9 @@ public class RagService {
     private final VectorStore vectorStore;
     private final ChatClient chatClient;
     private final String promptTemplateContent;
+
+    private static final Logger logger = LoggerFactory.getLogger(RagService.class);
+
 
     @Value("${rag.top-k:5}")
     private int defaultTopK;
@@ -51,6 +56,10 @@ public class RagService {
         String context = relevantDocs.stream()
                 .map(Document::getText)
                 .collect(Collectors.joining("\n\n---\n\n"));
+
+        //logger.info("Sandeep debug context " + context);
+
+
 
         List<String> sources = relevantDocs.stream()
                 .map(doc -> doc.getMetadata().getOrDefault("filename", "unknown").toString())

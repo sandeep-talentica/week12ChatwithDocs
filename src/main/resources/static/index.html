@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Doc Chat Assistant</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --primary: #2563eb;
+      --primary-soft: #dbeafe;
+      --success: #166534;
+      --success-soft: #dcfce7;
+      --error: #991b1b;
+      --error-soft: #fee2e2;
+      --border: #d1d5db;
+      --bubble-user: #2563eb;
+      --bubble-ai: #f3f4f6;
+      --shadow: 0 10px 30px rgba(31, 41, 55, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(170deg, #eef4ff 0%, var(--bg) 45%, #f8fafc 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .page {
+      width: min(1100px, 94vw);
+      margin: 36px auto;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .panel {
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      height: fit-content;
+    }
+
+    .title {
+      margin: 0;
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.4;
+    }
+
+    .dropzone {
+      border: 2px dashed #93c5fd;
+      border-radius: 12px;
+      padding: 20px 14px;
+      text-align: center;
+      background: #f8fbff;
+      transition: 0.2s ease;
+      cursor: pointer;
+    }
+
+    .dropzone.dragover {
+      border-color: var(--primary);
+      background: var(--primary-soft);
+    }
+
+    .dropzone p {
+      margin: 0;
+      color: #1e3a8a;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .dropzone small {
+      color: var(--muted);
+    }
+
+    .selected-file {
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #f8fafc;
+      font-size: 0.9rem;
+      color: #111827;
+      word-break: break-word;
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      flex: 1;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #1d4ed8;
+    }
+
+    .btn-ghost {
+      background: #eef2ff;
+      color: #1e3a8a;
+    }
+
+    .btn-ghost:hover:not(:disabled) {
+      background: #e0e7ff;
+    }
+
+    button:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    .status {
+      border-radius: 10px;
+      padding: 11px 12px;
+      border: 1px solid transparent;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      display: none;
+    }
+
+    .status.visible {
+      display: block;
+    }
+
+    .status.success {
+      background: var(--success-soft);
+      border-color: #86efac;
+      color: var(--success);
+    }
+
+    .status.error {
+      background: var(--error-soft);
+      border-color: #fca5a5;
+      color: var(--error);
+    }
+
+    .meta-list {
+      border-top: 1px solid #e5e7eb;
+      padding-top: 10px;
+      display: grid;
+      gap: 8px;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
+    .chat {
+      min-height: 650px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      overflow: hidden;
+    }
+
+    .chat-header {
+      padding: 18px 20px;
+      border-bottom: 1px solid #e5e7eb;
+      background: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge {
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .badge.ready {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .messages {
+      padding: 18px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: #fcfdff;
+    }
+
+    .msg {
+      max-width: 78%;
+      padding: 11px 13px;
+      border-radius: 12px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 0.95rem;
+    }
+
+    .msg.user {
+      background: var(--bubble-user);
+      color: #fff;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+
+    .msg.ai {
+      background: var(--bubble-ai);
+      color: #111827;
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+      border: 1px solid #e5e7eb;
+    }
+
+    .msg.system {
+      align-self: center;
+      background: #eef2ff;
+      color: #3730a3;
+      font-size: 0.85rem;
+      border: 1px dashed #c7d2fe;
+    }
+
+    .sources {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: #475569;
+      border-top: 1px solid #dbe3ef;
+      padding-top: 7px;
+    }
+
+    .composer {
+      border-top: 1px solid #e5e7eb;
+      padding: 14px;
+      background: #fff;
+      display: grid;
+      gap: 10px;
+    }
+
+    .composer-top {
+      display: grid;
+      grid-template-columns: 1fr 90px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .composer input,
+    .composer textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 0.95rem;
+      font-family: inherit;
+    }
+
+    .composer textarea {
+      min-height: 52px;
+      max-height: 180px;
+      resize: vertical;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    @media (max-width: 980px) {
+      .page {
+        grid-template-columns: 1fr;
+      }
+
+      .chat {
+        min-height: 70vh;
+      }
+
+      .msg {
+        max-width: 92%;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+  <aside class="card panel">
+    <h1 class="title">Document Upload</h1>
+    <p class="subtitle">Upload one document first, then ask questions grounded on its content.</p>
+
+    <label id="dropzone" class="dropzone" for="fileInput">
+      <p>Drop file here or click to browse</p>
+      <small>Supported: PDF, DOCX, DOC, TXT</small>
+    </label>
+    <input id="fileInput" type="file" accept=".pdf,.doc,.docx,.txt,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+
+    <div id="selectedFile" class="selected-file">No file selected</div>
+
+    <div class="actions">
+      <button id="uploadBtn" class="btn-primary" disabled>Upload Document</button>
+      <button id="clearBtn" class="btn-ghost" type="button">Clear</button>
+    </div>
+
+    <div id="uploadStatus" class="status" aria-live="polite"></div>
+
+    <div class="meta-list">
+      <div><strong>Active file:</strong> <span id="activeFile">None</span></div>
+      <div><strong>Chunks indexed:</strong> <span id="chunksCount">0</span></div>
+      <div><strong>Last update:</strong> <span id="lastUpdate">-</span></div>
+    </div>
+  </aside>
+
+  <section class="card chat">
+    <header class="chat-header">
+      <div>
+        <h2 class="title" style="margin: 0; font-size: 1.05rem;">Chat With Documents</h2>
+        <p class="subtitle" style="margin-top: 2px;">Ask questions and get context-aware answers from uploaded content.</p>
+      </div>
+      <span id="chatBadge" class="badge">Upload required</span>
+    </header>
+
+    <div id="messages" class="messages">
+      <div class="msg system">Upload a document to start chatting.</div>
+    </div>
+
+    <footer class="composer">
+      <div class="composer-top">
+        <textarea id="queryInput" placeholder="Ask a question from the uploaded document..." disabled></textarea>
+        <input id="topKInput" type="number" min="1" max="20" value="5" title="topK" disabled>
+      </div>
+      <div class="actions">
+        <button id="sendBtn" class="btn-primary" disabled>Send</button>
+        <button id="resetChatBtn" class="btn-ghost" type="button">Reset Chat</button>
+      </div>
+      <div class="hint">Tip: press Enter to send, Shift+Enter for a new line.</div>
+    </footer>
+  </section>
+</div>
+
+<script>
+  const fileInput = document.getElementById('fileInput');
+  const dropzone = document.getElementById('dropzone');
+  const selectedFile = document.getElementById('selectedFile');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const uploadStatus = document.getElementById('uploadStatus');
+
+  const activeFile = document.getElementById('activeFile');
+  const chunksCount = document.getElementById('chunksCount');
+  const lastUpdate = document.getElementById('lastUpdate');
+
+  const queryInput = document.getElementById('queryInput');
+  const topKInput = document.getElementById('topKInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const resetChatBtn = document.getElementById('resetChatBtn');
+  const messages = document.getElementById('messages');
+  const chatBadge = document.getElementById('chatBadge');
+
+  const API_BASE_URL = (() => {
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get('apiBaseUrl');
+    const fromGlobal = window.__API_BASE_URL__;
+    const normalize = (url) => String(url).replace(/\/+$/, '');
+
+    if (fromQuery) {
+      return normalize(fromQuery);
+    }
+    if (fromGlobal) {
+      return normalize(fromGlobal);
+    }
+
+    return window.location.port === '8080' ? window.location.origin : 'http://localhost:8080';
+  })();
+
+  function apiUrl(path) {
+    return API_BASE_URL + path;
+  }
+
+  let uploaded = false;
+
+  function setUploadStatus(kind, text) {
+    uploadStatus.className = 'status visible ' + kind;
+    uploadStatus.textContent = text;
+  }
+
+  function clearUploadStatus() {
+    uploadStatus.className = 'status';
+    uploadStatus.textContent = '';
+  }
+
+  function setChatReady(isReady) {
+    uploaded = isReady;
+    queryInput.disabled = !isReady;
+    topKInput.disabled = !isReady;
+    sendBtn.disabled = !isReady;
+    chatBadge.textContent = isReady ? 'Ready to chat' : 'Upload required';
+    chatBadge.classList.toggle('ready', isReady);
+  }
+
+  function formatNow() {
+    return new Date().toLocaleString();
+  }
+
+  function appendMessage(type, text, sourceList) {
+    const el = document.createElement('div');
+    el.className = 'msg ' + type;
+    el.textContent = text;
+
+    if (type === 'ai' && Array.isArray(sourceList) && sourceList.length > 0) {
+      const sources = document.createElement('div');
+      sources.className = 'sources';
+      sources.textContent = 'Sources: ' + sourceList.join(', ');
+      el.appendChild(sources);
+    }
+
+    messages.appendChild(el);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function resetFileSelection() {
+    fileInput.value = '';
+    selectedFile.textContent = 'No file selected';
+    uploadBtn.disabled = true;
+  }
+
+  async function uploadDocument() {
+    const file = fileInput.files[0];
+    if (!file) {
+      setUploadStatus('error', 'Please choose a file to upload.');
+      return;
+    }
+
+    clearUploadStatus();
+    uploadBtn.disabled = true;
+    setUploadStatus('success', 'Uploading and processing document...');
+
+    const data = new FormData();
+    data.append('file', file);
+
+    try {
+      const response = await fetch(apiUrl('/api/documents/upload'), {
+        method: 'POST',
+        body: data
+      });
+      const payload = await response.json();
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.errorMessage || payload.message || 'Upload failed');
+      }
+
+      setUploadStatus('success', payload.message + ' (' + payload.chunksCreated + ' chunks)');
+      activeFile.textContent = payload.filename || file.name;
+      chunksCount.textContent = String(payload.chunksCreated || 0);
+      lastUpdate.textContent = formatNow();
+      setChatReady(true);
+      resetFileSelection();
+
+      if (messages.querySelector('.msg.system')) {
+        messages.innerHTML = '';
+      }
+      appendMessage('system', 'Document ready. Ask your first question.');
+    } catch (error) {
+      setUploadStatus('error', 'Upload error: ' + error.message);
+      setChatReady(false);
+    } finally {
+      uploadBtn.disabled = true;
+    }
+  }
+
+  async function sendChat() {
+    if (!uploaded) {
+      return;
+    }
+
+    const query = queryInput.value.trim();
+    if (!query) {
+      setUploadStatus('error', 'Please type a question before sending.');
+      return;
+    }
+
+    const topKValue = Number(topKInput.value) || 5;
+    if (topKValue < 1 || topKValue > 20) {
+      setUploadStatus('error', 'topK must be between 1 and 20.');
+      return;
+    }
+
+    appendMessage('user', query);
+    queryInput.value = '';
+    queryInput.focus();
+    sendBtn.disabled = true;
+
+    try {
+      const response = await fetch(apiUrl('/api/chat'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, topK: topKValue })
+      });
+
+      const payload = await response.json();
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.errorMessage || 'Chat request failed');
+      }
+
+      appendMessage('ai', payload.answer || 'No answer returned.', payload.sources || []);
+    } catch (error) {
+      appendMessage('system', 'Chat error: ' + error.message);
+    } finally {
+      sendBtn.disabled = false;
+    }
+  }
+
+  dropzone.addEventListener('dragover', (event) => {
+    event.preventDefault();
+    dropzone.classList.add('dragover');
+  });
+
+  dropzone.addEventListener('dragleave', () => {
+    dropzone.classList.remove('dragover');
+  });
+
+  dropzone.addEventListener('drop', (event) => {
+    event.preventDefault();
+    dropzone.classList.remove('dragover');
+    if (event.dataTransfer.files && event.dataTransfer.files[0]) {
+      fileInput.files = event.dataTransfer.files;
+      const file = event.dataTransfer.files[0];
+      selectedFile.textContent = file.name + ' (' + Math.ceil(file.size / 1024) + ' KB)';
+      uploadBtn.disabled = false;
+      clearUploadStatus();
+    }
+  });
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) {
+      resetFileSelection();
+      return;
+    }
+
+    selectedFile.textContent = file.name + ' (' + Math.ceil(file.size / 1024) + ' KB)';
+    uploadBtn.disabled = false;
+    clearUploadStatus();
+  });
+
+  uploadBtn.addEventListener('click', uploadDocument);
+
+  clearBtn.addEventListener('click', () => {
+    resetFileSelection();
+    setUploadStatus('success', 'File selection cleared.');
+  });
+
+  sendBtn.addEventListener('click', sendChat);
+
+  queryInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendChat();
+    }
+  });
+
+  resetChatBtn.addEventListener('click', () => {
+    messages.innerHTML = '<div class="msg system">Upload a document to start chatting.</div>';
+    setChatReady(false);
+    queryInput.value = '';
+    topKInput.value = '5';
+    activeFile.textContent = 'None';
+    chunksCount.textContent = '0';
+    lastUpdate.textContent = '-';
+    setUploadStatus('success', 'Chat state reset. Upload a document to continue.');
+  });
+
+  setChatReady(false);
+</script>
+</body>
+</html>
+
